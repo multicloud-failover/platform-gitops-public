@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petclinic
+  namespace: petclinic-ns
+  labels:
+    app: petclinic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: petclinic
+  template:
+    metadata:
+      labels:
+        app: petclinic
+    spec:
+      # 🔹 여기: service account 지정
+      serviceAccountName: petclinic-sa
+
+      containers:
+        - name: petclinic-container
+          image: asia-northeast3-docker.pkg.dev/kdt2-final-project-t2/petclinic/petclinic:G-4.0.0-805d320e
+
+          # DB 설정은 ConfigMap / Secret에서 그대로 가져오기
+          envFrom:
+            - secretRef:
+                name: petclinic-db-secret
+
+          # 🔹 여기: Spring profile을 mysql용으로
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "mysql"
+            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+              value: "com.mysql.cj.jdbc.Driver"
+            - name: SPRING_SQL_INIT_MODE
+              value: "never"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "none"
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"

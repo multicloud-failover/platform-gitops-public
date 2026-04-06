@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petclinic
+  namespace: petclinic-ns
+  labels:
+    app: petclinic
+    datadoghq.com/apm-instrumentation: "enabled"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: petclinic
+  template:
+    metadata:
+      labels:
+        app: petclinic
+        datadoghq.com/apm-instrumentation: "enabled"
+        admission.datadoghq.com/enabled: "true"
+      annotations:
+        admission.datadoghq.com/java-lib.version: "v1.18.0"
+    spec:
+      # 🔹 여기: service account 지정
+      serviceAccountName: petclinic-sa
+
+      nodeSelector:
+        workload: "app"
+
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload
+                    operator: In
+                    values: ["app"]
+
+      tolerations:
+        - key: "workload"
+          operator: "Equal"
+          value: "app"
+          effect: "NoSchedule"
+
+      containers:
+        - name: petclinic-container
+          image: 396350191448.dkr.ecr.ap-northeast-2.amazonaws.com/petclinic:A-4.0.0-805d320e
+
+          # DB 설정은 ConfigMap / Secret에서 그대로 가져오기
+          envFrom:
+            - secretRef:
+                name: petclinic-db-secret
+
+          # 🔹 여기: Spring profile을 mysql용으로
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "mysql"
+            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+              value: "com.mysql.cj.jdbc.Driver"
+            #- name: SPRING_SQL_INIT_MODE # remove it after test
+            #  value: "never"
+            #- name: SPRING_JPA_HIBERNATE_DDL_AUTO # remove it after test
+            #  value: "none"
+            - name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+              value: "3"
+            - name: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+              value: "2"
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 24
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"

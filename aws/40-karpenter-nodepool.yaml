@@ -1,0 +1,54 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: app-default
+spec:
+  # Replace placeholders with your actual values before Argo applies this.
+  role: petcl-apne2-karpenter-node
+  amiFamily: AL2023
+  amiSelectorTerms:
+    - alias: al2023@latest
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "petcl-apne2-eks-cluster"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "petcl-apne2-eks-cluster"
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: app-default
+spec:
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+  template:
+    metadata:
+      labels:
+        workload: app
+    spec:
+      taints:
+        - key: workload
+          value: app
+          effect: NoSchedule
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: app-default
+      requirements:
+        - key: "kubernetes.io/arch"
+          operator: In
+          values: ["amd64"]
+        - key: "node.kubernetes.io/instance-type"
+          operator: In
+          values: ["t3.medium"]
+        - key: "karpenter.sh/capacity-type"
+          operator: In
+          values: ["on-demand"]
+        - key: "topology.kubernetes.io/zone"
+          operator: In
+          values: ["ap-northeast-2a", "ap-northeast-2c"]
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 300s

@@ -1,0 +1,9 @@
+# Baseline review routing for this PoC repo.
+# If ownership moves to a team later, replace this with the actual user or team handle.
+
+* @multicloud-failover
+
+/aws/ @multicloud-failover
+/gcp/ @multicloud-failover
+/.github/ @multicloud-failover
+/README.md @multicloud-failover

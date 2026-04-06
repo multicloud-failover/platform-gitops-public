@@ -1,0 +1,45 @@
+name: Validate Manifests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install yamllint
+        run: python3 -m pip install yamllint
+
+      - name: Lint YAML
+        run: python3 -m yamllint -c .yamllint.yml aws gcp .github/workflows
+
+  kubeconform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar -xz
+          sudo mv kubeconform /usr/local/bin/kubeconform
+
+      - name: Validate Kubernetes manifests
+        run: |
+          mapfile -t files < <(find aws gcp -type f \( -name '*.yaml' -o -name '*.yml' \) | sort)
+          kubeconform -summary -strict -ignore-missing-schemas "${files[@]}"
